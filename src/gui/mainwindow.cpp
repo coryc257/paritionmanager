@@ -114,6 +114,8 @@ void MainWindow::setupObjectNames()
 
 void MainWindow::init()
 {
+
+
     treeLog().init();
 
     connect(GlobalLog::instance(), &GlobalLog::newMessage, &treeLog(), &TreeLog::onNewLogMessage);

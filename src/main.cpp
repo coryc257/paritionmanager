@@ -22,11 +22,12 @@
 #include <KDBusService>
 #include <KMessageBox>
 #include <KLocalizedString>
-
+//test
 #include <config.h>
 
 int Q_DECL_IMPORT main(int argc, char* argv[])
 {
+
     QApplication app(argc, argv);
     app.setWindowIcon(QIcon::fromTheme(QStringLiteral("partitionmanager")));
 

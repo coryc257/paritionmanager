@@ -66,6 +66,7 @@ public:
     }
 
     void acceptChanges();
+    void cancelChanges();
     void removeMountPoint();
     bool writeMountpoints(const QString& filename);
 

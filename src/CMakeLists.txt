@@ -25,6 +25,8 @@ install(FILES partitionmanager.kcfg DESTINATION ${KCFG_INSTALL_DIR})
 
 add_executable(partitionmanager ${partitionmanager_SRCS} )
 
+
+find_library(LIBBLKID blkid)
 target_link_libraries(partitionmanager ${BLKID_LIBRARIES}
 	kpmcore
 	KF5::ConfigCore
@@ -38,7 +40,13 @@ target_link_libraries(partitionmanager ${BLKID_LIBRARIES}
 	KF5::KIOWidgets
 	KF5::WidgetsAddons
 	KF5::XmlGui
+	${LIBBLKID}
 )
+
+
+#if(LIBBLKID)
+#target_link_libraries(partitionmanager ${LIBBLKID})
+#endif()
 
 target_compile_definitions(partitionmanager PRIVATE -DCMAKE_INSTALL_FULL_LIBEXECDIR_KF5=\"${CMAKE_INSTALL_FULL_LIBEXECDIR_KF5}\")
 

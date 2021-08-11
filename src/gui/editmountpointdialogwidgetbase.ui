@@ -322,6 +322,16 @@ SPDX-License-Identifier: GPL-3.0-or-later
    <item row="5" column="1" colspan="3">
     <widget class="QComboBox" name="m_EditPath"/>
    </item>
+   <item row="13" column="0">
+    <widget class="QTextEdit" name="t_MapName">
+     <property name="plainText">
+      <string>Test</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
   </layout>
  </widget>
  <resources/>

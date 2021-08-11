@@ -5,4 +5,5 @@
 
 set(UTIL_SRC
 	util/guihelpers.cpp
+	util/crypttab.cpp
 )

@@ -8,6 +8,8 @@
 
 #include "gui/editmountpointdialogwidget.h"
 #include "gui/editmountoptionsdialog.h"
+#include "util/crypttab.h"
+
 
 #include <core/partition.h>
 
@@ -28,7 +30,6 @@ EditMountPointDialogWidget::EditMountPointDialogWidget(QWidget* parent, Partitio
     m_Partition(p)
 {
     m_fstabEntries = readFstabEntries();
-
     setupUi(this);
 
     m_deviceNode = partition().deviceNode();
@@ -210,7 +211,7 @@ QStringList EditMountPointDialogWidget::options() const
 
 void EditMountPointDialogWidget::acceptChanges()
 {
-    currentEntry->setDumpFreq(spinDumpFreq().value());
+	currentEntry->setDumpFreq(spinDumpFreq().value());
     currentEntry->setPassNumber(spinPassNumber().value());
     currentEntry->setMountPoint(editPath().currentText());
     currentEntry->setOptions(options());

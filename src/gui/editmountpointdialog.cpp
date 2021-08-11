@@ -9,8 +9,11 @@
 
 #include "gui/editmountpointdialog.h"
 #include "gui/editmountpointdialogwidget.h"
+#include "util/crypttab.h"
 
 #include <core/partition.h>
+#include <fs/filesystem.h>
+#include <fs/luks.h>
 
 #include <KConfigGroup>
 #include <KGuiItem>
@@ -63,10 +66,29 @@ void EditMountPointDialog::accept_(MountPointAction action)
                                            QStringLiteral("reallyWriteMountPoints"));
     if (dialogResult == KMessageBox::Cancel)
         return;
+
     if(action == MountPointAction::Remove)
         widget().removeMountPoint();
     else if (action == MountPointAction::Edit)
         widget().acceptChanges();
+
+
+
+    // ADDITIONAL CODE - coryc257@gmail.com
+    if (partition().roles().has(PartitionRole::Luks) && partition().fileSystem().type() != FileSystem::Type::Luks) {
+        const FS::luks* luksFs = dynamic_cast<const FS::luks*>(&partition().fileSystem());
+        QString tmp_mapname = QString(luksFs->mapperName());
+
+        if (tmp_mapname.isNull() || tmp_mapname.isEmpty()) {
+            tmp_mapname = QString(QStringLiteral("/dev/mapper/luks-"));
+            tmp_mapname.append(partition().fileSystem().uuid());
+        }
+        if (!CryptTabEntry::SaveCryptTab(this, tmp_mapname, partition().partitionPath(), QStringLiteral("none"))) {
+            QDialog::accept();
+            return;
+        }
+    }
+
     if (writeMountpoints(widget().fstabEntries())) {
         if (action == MountPointAction::Edit)
             partition().setMountPoint(widget().editPath().currentText());
