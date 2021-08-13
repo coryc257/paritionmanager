@@ -23,6 +23,7 @@
 #include <KStandardGuiItem>
 
 #include <QDialogButtonBox>
+#include <QTextStream>
 
 EditMountPointDialog::EditMountPointDialog(QWidget* parent, Partition& p) :
     QDialog(parent),
@@ -75,6 +76,8 @@ void EditMountPointDialog::accept_(MountPointAction action)
 
 
     // ADDITIONAL CODE - coryc257@gmail.com
+    // TODO: handle all the name types
+    // TODO: handle key file setup
     if (partition().roles().has(PartitionRole::Luks) && partition().fileSystem().type() != FileSystem::Type::Luks) {
         const FS::luks* luksFs = dynamic_cast<const FS::luks*>(&partition().fileSystem());
         QString tmp_mapname = QString(luksFs->mapperName());

@@ -24,6 +24,7 @@ public:
     QString keyFile;
     QString options;
     bool in_name_only;
+    bool add;
 
     static CryptTabEntry makeFromFile(QString fileEntry);
     static bool SaveCryptTab(QWidget *parent, QString deviceNode, QString deviceUUID, QString deviceKeyFile);
@@ -34,6 +35,7 @@ class CryptTabList
 {
 public:
     QList<CryptTabEntry> cryptoEntries;
+    int status;
 
     void loadEntries(void);
     bool hasEntry(QString deviceUUID);

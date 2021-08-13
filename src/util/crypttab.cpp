@@ -14,24 +14,24 @@
 
 #include <unistd.h>
 
-#define CTE_OUTPUT qPrintable(newEntry.name), qPrintable(newEntry.identifier), qPrintable(newEntry.keyFile), qPrintable(newEntry.options)
+// read /etc/crypttab
+#define CRYPTTAB_COMMAND QStringLiteral("cat"), QStringList({QStringLiteral("/etc/crypttab")}), QProcess::MergedChannels
+// make a file path safe to concatenate into string surrounded by '
+#define MAKE_DEVICE_SAFE(deviceName) deviceName.remove(QStringLiteral("'")).remove(QStringLiteral("\\"))
+// lsblk -pf '/dev/name' | grep '/dev/name' | awk '{print $4}' # get the UUID
+#define LSBLK_COMMAND(deviceName) QStringLiteral("sh"), QStringList({QStringLiteral("-c"), \
+    QStringLiteral("lsblk -pf '") + MAKE_DEVICE_SAFE(deviceName) + QStringLiteral("' | grep '") \
+    + MAKE_DEVICE_SAFE(deviceName) + QStringLiteral("' | awk '{print $4}'")}), QProcess::MergedChannels
 
+// Get the UUID for a given device path
 static __CT_UUID_SAFE_RETURN __get_uuid_by_dev_path(QString devPath)
 {
     __CT_UUID_SAFE_RETURN devContainer;
-    QString safeDeviceName = devPath.remove(QStringLiteral("'")).remove(QStringLiteral("\\"));
-    QString execCommand = QStringLiteral("lsblk -pf '") + safeDeviceName + QStringLiteral("' | grep '") + safeDeviceName + QStringLiteral("' | awk '{print $4}'");
-    QProcess process;
-    QStringList execArgs = {QStringLiteral("-c"),execCommand};
-
+    ExternalCommand lsblkCommand(LSBLK_COMMAND(devPath));
     devContainer.status = 0;
 
-    process.start(QStringLiteral("sh"), execArgs);
-    process.setProcessChannelMode(QProcess::MergedChannels);
-
-    if (process.waitForFinished(-1)) {
-        QByteArray x = process.readAll();
-        devContainer.devUUID = QString::fromStdString(x.toStdString()).remove(QStringLiteral("\n"));
+    if (lsblkCommand.start()) {
+        devContainer.devUUID = ((QString)lsblkCommand.output()).remove(QStringLiteral("\n"));
     } else {
         devContainer.status = -1;
         devContainer.devUUID = QStringLiteral("Error getting UUID");
@@ -45,33 +45,32 @@ __CT_UUID_SAFE_RETURN CryptTabList::testThing(QString devName)
     return __get_uuid_by_dev_path(devName);
 }
 
+// Load all then entries in the /etc/crypttab file
 void CryptTabList::loadEntries()
 {
-    ExternalCommand readCryptTab(QStringLiteral("cat"), QStringList({QStringLiteral("/etc/crypttab")}), QProcess::MergedChannels);
+    ExternalCommand readCryptTab(CRYPTTAB_COMMAND);
 
     if (!readCryptTab.run()) {
         // TODO
     } else {
         QStringList cryptTabLines = readCryptTab.output().split(QStringLiteral("\n"));
         for (int j = 0; j < cryptTabLines.count(); j++) {
-            printf("%d\n",j);
-            this->cryptoEntries.append(CryptTabEntry::makeFromFile(cryptTabLines[j]));
+            CryptTabEntry newEntry = CryptTabEntry::makeFromFile(cryptTabLines[j]);
+            if (newEntry.add)
+                this->cryptoEntries.append(newEntry);
         }
-        /*for (QString line : cryptTabLines) {
-            this->cryptoEntries.append(CryptTabEntry::makeFromFile(line));
-        }*/
     }
 }
 
+// Turn an entry in /etc/crypttab into a "CryptTabEntry"
 CryptTabEntry CryptTabEntry::makeFromFile(QString fileEntry)
 {
     CryptTabEntry newEntry;
     QStringList fileParts;
-
+    newEntry.add = true;
 
     if (fileEntry.count() == 0 || fileEntry.isNull() || fileEntry.isEmpty()) {
-        newEntry.in_name_only = true;
-        newEntry.name = QStringLiteral("");
+        newEntry.add = false;
         return newEntry;
     }
 
@@ -95,6 +94,8 @@ CryptTabEntry CryptTabEntry::makeFromFile(QString fileEntry)
     return newEntry;
 }
 
+// add a "CryptTabEntry" to the loaded /etc/crypttab
+//  todo, forward to update if already there
 void CryptTabList::createEntry(QString deviceUUID, QString deviceNode, QString deviceKeyFile, QString options)
 {
     CryptTabEntry newEntry;
@@ -108,6 +109,7 @@ void CryptTabList::createEntry(QString deviceUUID, QString deviceNode, QString d
     this->cryptoEntries.append(newEntry);
 }
 
+// check if the /etc/crypttab has a particular UUID mapped
 bool CryptTabList::hasEntry(QString deviceUUID)
 {
     bool found = false;
@@ -124,6 +126,9 @@ bool CryptTabList::hasEntry(QString deviceUUID)
     return found;
 }
 
+// Update the KeyFile/name(the first column) for a particular CryptTabEntry given the UUID
+//  does nothing if the entry is not there
+//  TODO: forward to createEntry if not there
 void CryptTabList::updateEntry(QString deviceUUID, QString deviceNode, QString deviceKeyFile)
 {
     QString keyValue = QString(QStringLiteral("UUID="));
@@ -139,6 +144,7 @@ void CryptTabList::updateEntry(QString deviceUUID, QString deviceNode, QString d
     }
 }
 
+// Calculate max column width
 static void __is_new_max(int *colValue, int valueLength)
 {
     if (valueLength > *colValue) {
@@ -146,10 +152,20 @@ static void __is_new_max(int *colValue, int valueLength)
     }
 }
 
+// Write CryptTabList to /etc/crypttab
+// TODO: implement the save command as cp /etc/crypttab /etc/crypttab_bkp
+//                                     printf "first line\n" > /etc/crypttab_new
+//                                     each > printf "line\n" >> /etc/crypttab_new
+//                                     cat /etc/crypttab_new > /etc/crypttab
+//                                     rm /etc/crypttab_new
 void CryptTabList::save()
 {
     int cols[4] = {0,0,0,0};
     QStringList cryptTabOutput;
+
+    this->status = 0;
+
+    // TODO: BACKUP
 
     for(CryptTabEntry entry : this->cryptoEntries) {
         if(!entry.in_name_only) {
@@ -163,15 +179,42 @@ void CryptTabList::save()
     for (int j = 0; j < 4; j++)
         cols[j] += 2;
 
-    for(CryptTabEntry entry : this->cryptoEntries) {
-        if(!entry.in_name_only) {
-            cryptTabOutput.append(entry.compile(cols));
-        } else {
-            cryptTabOutput.append(entry.name);
-        }
+    ExternalCommand starNew(QStringLiteral("sh"), QStringList({
+        QStringLiteral("-c"),
+        QStringLiteral("printf '%s' '")+
+        QStringLiteral("")
+        +QStringLiteral("' >") + QStringLiteral("/home/el/crytithing")}));
+    if(!starNew.start()) {
+        this->status = -1;
+        // TODO DELETE TEMP
     }
 
-    qInfo() << QStringLiteral("NewCryptTab") << QLatin1Char('\n') << cryptTabOutput.join(QLatin1Char('\n'));
+
+    for(CryptTabEntry entry : this->cryptoEntries) {
+        QString outputItem;
+        if(!entry.in_name_only) {
+            outputItem = entry.compile(cols);
+        } else {
+            outputItem = entry.name;
+        }
+
+        ExternalCommand meow(QStringLiteral("sh"), QStringList({
+        QStringLiteral("-c"),
+        QStringLiteral("printf '%s\n' '")+
+        outputItem.replace(QStringLiteral("'"),QStringLiteral("\\'")).replace(QStringLiteral("\""),QStringLiteral("\\\""))
+            +QStringLiteral("' >>") + QStringLiteral("/home/el/crytithing")}));
+        if(!meow.start()) {
+            this->status = -1;
+        }
+
+    }
+
+    // TODO: MAKE REAL
+    // TODO: DELETE TEMP
+
+
+
+    //qInfo() << QStringLiteral("NewCryptTab") << QLatin1Char('\n') << cryptTabOutput.join(QLatin1Char('\n'));
 
 }
 
@@ -197,7 +240,7 @@ bool CryptTabEntry::SaveCryptTab(QWidget *parent, QString deviceNode, QString de
     }
     ctl.save();
 
-    return true;
+    return ctl.status == 0 ? true : false;
 }
 
 QString CryptTabEntry::compile(int cols[4])
